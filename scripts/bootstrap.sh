@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./scripts/bootstrap.sh                              # interactive prompts
-#   ./scripts/bootstrap.sh --pkg X --cli Y --alias Z --desc "..."
+#   ./scripts/bootstrap.sh --pkg X --cli Y --alias Z --desc "..." [--yes]
 #
 # Placeholders substituted across every tracked text file:
 #   __PKG_NAME__        e.g. azaks_conn       (snake_case)
@@ -27,6 +27,7 @@ pkg=""
 cli=""
 alias_=""
 desc=""
+assume_yes=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --cli)    cli="$2";    shift 2 ;;
     --alias)  alias_="$2"; shift 2 ;;
     --desc)   desc="$2";   shift 2 ;;
+    -y|--yes) assume_yes=1;  shift   ;;
     -h|--help)
       sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -80,8 +82,18 @@ Bootstrap plan
 
 EOF
 
-read -r -p "Proceed? [y/N] " confirm
-[[ "$confirm" =~ ^[Yy]$ ]] || die "aborted"
+# --yes, or any non-interactive caller (CI, a wrapper script), skips the
+# prompt. Without this, `read` on a closed stdin returns non-zero under
+# `set -e` and the script dies after printing the plan - which looks like a
+# rendering failure rather than a missing confirmation.
+if [[ "$assume_yes" == "1" ]]; then
+  info "Proceeding (--yes)."
+elif [[ ! -t 0 ]]; then
+  info "stdin is not a TTY; proceeding without confirmation."
+else
+  read -r -p "Proceed? [y/N] " confirm
+  [[ "$confirm" =~ ^[Yy]$ ]] || die "aborted"
+fi
 
 # ------------------------------------------------------ run from root ----
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
