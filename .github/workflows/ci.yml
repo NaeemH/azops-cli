@@ -48,7 +48,8 @@ jobs:
             --pkg demo_tool \
             --cli demo-tool \
             --alias dt \
-            --desc "Rendered template smoke test"
+            --desc "Rendered template smoke test" \
+            --yes
 
       - name: Assert no placeholder survived
         run: |
