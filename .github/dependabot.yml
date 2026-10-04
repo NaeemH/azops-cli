@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # This repository is a template, not an installable package: pyproject.toml
+  # carries `name = "__CLI_NAME__"`, which Dependabot's pip updater cannot
+  # parse. Only the github-actions ecosystem is tracked here.
+  #
+  # That still matters, because the workflow pins every tool generated from
+  # this template inherits. When the siblings drifted, checkout, setup-python
+  # and upload-artifact were all a major behind and download-artifact two -
+  # inside the release job that publishes to PyPI.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      actions-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
