@@ -83,3 +83,73 @@ jobs:
       - name: Test (pytest)
         working-directory: ${{ runner.temp }}/rendered
         run: pytest -q
+
+  # release.yml publishes to PyPI and only ever runs on a v* tag, so the actions
+  # unique to it - upload-artifact, download-artifact - are never exercised by a
+  # pull request. A Dependabot bump to either therefore arrives with a green tick
+  # that describes the gate above, which does not reference them.
+  #
+  # Every sibling tool gained this job; the template did not, so each new tool
+  # starts life reproducing the blind spot.
+  #
+  # Like the gate, this renders the template first - an unrendered pyproject.toml
+  # cannot be built at all, because hatchling rejects __CLI_NAME__.
+  #
+  # It deliberately stops at building and re-downloading. Publishing stays bound
+  # to the tag-triggered workflow, so Trusted Publishing is never reachable from
+  # a pull request.
+  build:
+    name: Build distribution (exercises the release path)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Render the template
+        run: |
+          set -euo pipefail
+          cp -r . "${RUNNER_TEMP}/rendered"
+          cd "${RUNNER_TEMP}/rendered"
+          rm -rf .git
+          ./scripts/bootstrap.sh \
+            --pkg demo_tool \
+            --cli demo-tool \
+            --alias dt \
+            --desc "Rendered template build check" \
+            --yes
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build twine
+
+      - name: Build sdist + wheel
+        working-directory: ${{ runner.temp }}/rendered
+        run: python -m build
+
+      - name: Check metadata
+        working-directory: ${{ runner.temp }}/rendered
+        run: twine check dist/*
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dist-ci
+          path: ${{ runner.temp }}/rendered/dist/
+
+      - name: Clear the local copy
+        run: rm -rf "${RUNNER_TEMP}/rendered/dist"
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: dist-ci
+          path: ${{ runner.temp }}/rendered/dist/
+
+      - name: Assert the round trip produced both artifacts
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/rendered"
+          ls -l dist/
+          test -n "$(find dist -name '*.whl' -print -quit)" || { echo "::error::no wheel after download"; exit 1; }
+          test -n "$(find dist -name '*.tar.gz' -print -quit)" || { echo "::error::no sdist after download"; exit 1; }
+          echo "Round trip OK."
